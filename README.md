@@ -24,7 +24,7 @@ Now we can import and setup the LoginManager, which will handle the process of
 encoding and decoding our Json Web Tokens.
 
 ````python
-from fastapi_login import LoginManager
+from fastapi_login import LoginManager, make_password
 manager = LoginManager(SECRET, tokenUrl='/auth/token')
 ````
 For the example we will use a dictionary to represent our user database. In your
@@ -32,7 +32,8 @@ application this could also be a real database like sqlite or Postgres. It does 
 matter as you have to provide the function which retrieves the user.
 
 ````python
-fake_db = {'johndoe@e.mail': {'password': 'hunter2'}}
+password, salt = make_password('hunter2')
+fake_db = {'johndoe@e.mail': {'password': password, 'salt': salt}}
 ````
 
 Now we have to provide the ``LoginManager`` with a way to load our user. The 
@@ -52,6 +53,7 @@ a new route:
 from fastapi import Depends
 from fastapi.security import OAuth2PasswordRequestForm
 from fastapi_login.exceptions import InvalidCredentialsException
+from fastapi_login import check_password
 
 @app.post('/auth/token')
 def login(data: OAuth2PasswordRequestForm = Depends()):
@@ -61,7 +63,7 @@ def login(data: OAuth2PasswordRequestForm = Depends()):
     user = load_user(email)  # we are using the same function to retrieve the user
     if not user:
         raise InvalidCredentialsException  # you can also use your own HTTPException
-    elif password != user['password']:
+    elif not check_password(user['password'], user['salt'], password):
         raise InvalidCredentialsException
     
     access_token = manager.create_access_token(
